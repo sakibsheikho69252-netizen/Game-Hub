@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0e14">
+<title>Tap Rush — Game Hub</title>
+<style>
+  :root{--bg:#0b0e14;--surface:#161b27;--border:#262d3d;--text:#e8ecf5;--dim:#98a3bd;--accent:#6c5ce7;--cyan:#00d4ff;--gold:#ffc93c;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;overflow:hidden;
+    user-select:none;-webkit-user-select:none;
+  }
+  .game-bar{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface);
+  }
+  .back{
+    color:var(--dim);text-decoration:none;font-size:.85rem;font-weight:700;
+    padding:10px 12px;border-radius:10px;border:1px solid var(--border);
+    min-height:44px;display:flex;align-items:center;
+  }
+  .back:hover{color:var(--text);}
+  .game-name{font-weight:800;font-size:.95rem;}
+
+  .hud{
+    flex:0 0 auto;display:flex;justify-content:space-around;padding:10px 12px;
+    border-bottom:1px solid var(--border);gap:8px;
+  }
+  .hud>div{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:60px;}
+  .hud-label{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:800;}
+  .hud strong{font-size:1.2rem;font-weight:900;font-variant-numeric:tabular-nums;}
+  #best{color:var(--gold);}
+  #time.low{color:#e74c3c;}
+
+  .arena{
+    position:relative;flex:1 1 auto;overflow:hidden;
+    background:radial-gradient(ellipse at center,#12151f 0%,#0b0e14 70%);
+  }
+  .target{
+    position:absolute;width:74px;height:74px;border-radius:50%;
+    border:none;cursor:pointer;padding:0;
+    background:radial-gradient(circle at 35% 30%,#fff 0%,var(--cyan) 40%,var(--accent) 100%);
+    box-shadow:0 0 0 0 rgba(108,92,231,.4), 0 0 28px rgba(0,212,255,.5);
+    animation:pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(108,92,231,.2), 0 0 30px rgba(0,212,255,.55);}
+    50%    {box-shadow:0 0 0 12px rgba(108,92,231,.08), 0 0 44px rgba(0,212,255,.8);}
+  }
+  .target[hidden]{display:none;}
+
+  .overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:12px;
+    text-align:center; padding:24px;
+    background:rgba(11,14,20,.86);
+    backdrop-filter:blur(4px);
+  }
+  .overlay[hidden]{display:none;}
+  .overlay h1{margin:0;font-size:1.9rem;font-weight:900;letter-spacing:-.03em;}
+  .overlay p{margin:0;color:var(--dim);font-size:.92rem;max-width:34ch;line-height:1.55;}
+  .final{font-size:1.05rem;font-weight:800;}
+  .final span{color:var(--gold);font-size:1.6rem;}
+  .btn{
+    margin-top:8px; padding:14px 34px; border-radius:14px; border:none;
+    background:var(--accent); color:#fff; font-size:1rem; font-weight:800;
+    cursor:pointer; min-height:52px; letter-spacing:.02em;
+    box-shadow:0 8px 26px rgba(108,92,231,.45);
+  }
+  .btn:active{transform:scale(.97);}
+  .hint{font-size:.72rem;color:#6a7590;}
+</style>
+</head>
+<body>
+
+<header class="game-bar">
+  <a class="back" href="../../index.html">← Back to Game Hub</a>
+  <span class="game-name">👆 Tap Rush</span>
+</header>
+
+<div class="hud">
+  <div><span class="hud-label">Score</span><strong id="score">0</strong></div>
+  <div><span class="hud-label">Time</span><strong id="time">30</strong></div>
+  <div><span class="hud-label">Best</span><strong id="best">0</strong></div>
+</div>
+
+<div class="arena" id="arena">
+  <button class="target" id="target" hidden aria-label="Tap the target"></button>
+
+  <div class="overlay" id="overlay">
+    <h1 id="overlay-title">Tap Rush</h1>
+    <p id="overlay-text">Tap the glowing target as fast as you can. You have 30 seconds.</p>
+    <div class="final" id="overlay-final" hidden>Score: <span id="final-score">0</span></div>
+    <button class="btn" id="start">Start</button>
+    <p class="hint">Works with touch, mouse and keyboard (Enter).</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var BEST_KEY = 'gamehub:best:tap-rush';
+  var DURATION = 30;
+  var SIZE = 74;
+
+  var arena    = document.getElementById('arena');
+  var target   = document.getElementById('target');
+  var scoreEl  = document.getElementById('score');
+  var timeEl   = document.getElementById('time');
+  var bestEl   = document.getElementById('best');
+  var overlay  = document.getElementById('overlay');
+  var oTitle   = document.getElementById('overlay-title');
+  var oText    = document.getElementById('overlay-text');
+  var oFinal   = document.getElementById('overlay-final');
+  var finalEl  = document.getElementById('final-score');
+  var startBtn = document.getElementById('start');
+
+  var score = 0, timeLeft = DURATION, timer = null, running = false;
+
+  function readBest() {
+    try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; }
+    catch (e) { return 0; }
+  }
+  function writeBest(v) {
+    try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* noop */ }
+  }
+  bestEl.textContent = readBest();
+
+  function placeTarget() {
+    var r = arena.getBoundingClientRect();
+    var pad = 10;
+    var maxX = Math.max(pad, r.width  - SIZE - pad);
+    var maxY = Math.max(pad, r.height - SIZE - pad);
+    var x = pad + Math.random() * (maxX - pad);
+    var y = pad + Math.random() * (maxY - pad);
+    target.style.left = x + 'px';
+    target.style.top  = y + 'px';
+  }
+
+  function start() {
+    score = 0;
+    timeLeft = DURATION;
+    running = true;
+
+    scoreEl.textContent = '0';
+    timeEl.textContent = String(DURATION);
+    timeEl.classList.remove('low');
+
+    overlay.hidden = true;
+    target.hidden = false;
+    placeTarget();
+
+    clearInterval(timer);
+    timer = setInterval(tick, 1000);
+  }
+
+  function tick() {
+    timeLeft--;
+    timeEl.textContent = String(Math.max(0, timeLeft));
+    if (timeLeft <= 5) timeEl.classList.add('low');
+    if (timeLeft <= 0) end();
+  }
+
+  function end() {
+    running = false;
+    clearInterval(timer);
+    timer = null;
+
+    target.hidden = true;
+    target.style.left = '0px';
+    target.style.top  = '0px';
+
+    var best = readBest();
+    var isRecord = score > best;
+    if (isRecord) { writeBest(score); bestEl.textContent = score; }
+
+    oTitle.textContent = isRecord ? '🏆 New Best!' : "Time's Up!";
+    oText.textContent  = isRecord
+      ? 'You beat your previous record of ' + best + '.'
+      : 'Nice run. Try to beat ' + best + '.';
+    finalEl.textContent = String(score);
+    oFinal.hidden = false;
+    startBtn.textContent = 'Play Again';
+    overlay.hidden = false;
+  }
+
+  target.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (!running) return;
+    score++;
+    scoreEl.textContent = String(score);
+    placeTarget();
+  });
+
+  if (!window.PointerEvent) {
+    target.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      if (!running) return;
+      score++;
+      scoreEl.textContent = String(score);
+      placeTarget();
+    }, { passive: false });
+  }
+
+  startBtn.addEventListener('click', start);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !running) { e.preventDefault(); start(); }
+  });
+
+  window.addEventListener('resize', function () {
+    if (running) placeTarget();
+  });
+
+  arena.addEventListener('touchmove', function (e) {
+    if (running) e.preventDefault();
+  }, { passive: false });
+})();
+</script>
+</body>
+</html>
