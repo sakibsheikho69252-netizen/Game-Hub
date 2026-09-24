@@ -58,6 +58,21 @@
       "difficulty": "Easy",
       "new": false,
       "featured": false
+    },
+    {
+      "id": "tetris",
+      "title": "Tetris",
+      "description": "Classic block-stacking puzzle. Fill rows to clear them. Use Hold & Next. Don't let the stack reach the top!",
+      "folder": "tetris",
+      "category": "Puzzle",
+      "tags": ["puzzle", "tetris", "blocks", "classic", "strategy"],
+      "icon": "🧱",
+      "difficulty": "Medium",
+      "version": "1.0.0",
+      "featured": true,
+      "new": true,
+      "releaseDate": "2026-09-25",
+      "author": "Game Hub",
+      "controls": "← → ↓ ↻ / Touch buttons / Arrow keys + Space + Z/X + C + P"
     }
   ]
-}
