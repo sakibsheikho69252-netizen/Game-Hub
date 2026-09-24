@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>Reaction Test — Game Hub</title>
+<style>
+  :root{--bg:#0b0e14;--surface:#161b27;--border:#262d3d;--text:#e8ecf5;--dim:#98a3bd;--gold:#ffc93c;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;overflow:hidden;
+    user-select:none;-webkit-user-select:none;
+  }
+  .game-bar{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface);
+  }
+  .back{
+    color:var(--dim);text-decoration:none;font-size:.85rem;font-weight:700;
+    padding:10px 12px;border-radius:10px;border:1px solid var(--border);
+    min-height:44px;display:flex;align-items:center;
+  }
+  .back:hover{color:var(--text);}
+  .game-name{font-weight:800;font-size:.95rem;}
+
+  .pad{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;text-align:center;padding:24px;cursor:pointer;
+    transition:background .08s linear;
+    background:#141a28;
+  }
+  .pad.waiting{background:#8a2b3a;}
+  .pad.ready  {background:#1f7a48;}
+  .pad.toosoon{background:#5a4a12;}
+
+  .pad h1{margin:0;font-size:1.6rem;font-weight:900;letter-spacing:-.03em;}
+  .pad p{margin:0;font-size:.92rem;opacity:.92;max-width:34ch;line-height:1.55;}
+  .big{font-size:2.4rem;font-weight:900;font-variant-numeric:tabular-nums;}
+  .hint{font-size:.74rem;opacity:.65;position:absolute;bottom:16px;}
+
+  .pad { position:relative; }
+</style>
+</head>
+<body>
+
+<header class="game-bar">
+  <a class="back" href="../../index.html">← Back to Game Hub</a>
+  <span class="game-name">⚡ Reaction Test</span>
+</header>
+
+<div class="pad" id="pad">
+  <h1 id="title">Reaction Test</h1>
+  <p id="text">Tap anywhere to start. When the screen turns green, tap as fast as you can.</p>
+  <div class="big" id="result" hidden></div>
+  <p class="hint">Works with touch, mouse and keyboard (Enter / Space).</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var BEST_KEY = 'gamehub:best:reaction-test';
+
+  var pad    = document.getElementById('pad');
+  var title  = document.getElementById('title');
+  var text   = document.getElementById('text');
+  var result = document.getElementById('result');
+
+  var phase = 'idle';
+  var timeoutId = null;
+  var readyAt = 0;
+
+  function readBest() {
+    try {
+      var v = parseInt(localStorage.getItem(BEST_KEY), 10);
+      return (isFinite(v) && v > 0) ? v : null;
+    } catch (e) { return null; }
+  }
+  function writeBest(v) {
+    try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) {}
+  }
+
+  function setPhase(p) {
+    phase = p;
+    pad.className = 'pad ' + (p === 'idle' || p === 'result' ? '' : p);
+  }
+
+  function showIdle() {
+    setPhase('idle');
+    title.textContent = 'Reaction Test';
+    text.textContent = 'Tap anywhere to start. When the screen turns green, tap as fast as you can.';
+    result.hidden = true;
+
+    var best = readBest();
+    if (best !== null) {
+      text.textContent += '  Best: ' + best + ' ms.';
+    }
+  }
+
+  function armRound() {
+    setPhase('waiting');
+    title.textContent = 'Wait for green…';
+    text.textContent = 'Do not tap yet.';
+    result.hidden = true;
+
+    var delay = 1200 + Math.random() * 2600;
+    timeoutId = setTimeout(function () {
+      timeoutId = null;
+      readyAt = performance.now();
+      setPhase('ready');
+      title.textContent = 'TAP!';
+      text.textContent = '';
+    }, delay);
+  }
+
+  function finish(ms) {
+    setPhase('result');
+    var best = readBest();
+    var isRecord = (best === null || ms < best);
+    if (isRecord) writeBest(ms);
+
+    title.textContent = isRecord ? '🏆 New Best!' : 'Result';
+    text.textContent = isRecord
+      ? 'That was faster than your previous best.'
+      : 'Best so far: ' + best + ' ms.';
+    result.textContent = Math.round(ms) + ' ms';
+    result.hidden = false;
+    phase = 'result';
+  }
+
+  function tooSoon() {
+    setPhase('toosoon');
+    title.textContent = 'Too soon!';
+    text.textContent = 'You tapped before the screen turned green.';
+    result.hidden = true;
+    phase = 'toosoon';
+  }
+
+  function handleTap() {
+    if (phase === 'idle' || phase === 'result' || phase === 'toosoon') {
+      armRound();
+      return;
+    }
+    if (phase === 'waiting') {
+      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+      tooSoon();
+      return;
+    }
+    if (phase === 'ready') {
+      finish(performance.now() - readyAt);
+    }
+  }
+
+  pad.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    handleTap();
+  });
+
+  if (!window.PointerEvent) {
+    pad.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      handleTap();
+    }, { passive: false });
+    pad.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      handleTap();
+    });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleTap();
+    }
+  });
+
+  window.addEventListener('beforeunload', function () {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+
+  showIdle();
+})();
+</script>
+</body>
+</html>
