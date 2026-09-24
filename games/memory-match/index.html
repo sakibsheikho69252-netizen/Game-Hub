@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>Memory Match — Game Hub</title>
+<style>
+  :root{--bg:#0b0e14;--surface:#161b27;--surface2:#1c2231;--border:#262d3d;
+        --text:#e8ecf5;--dim:#98a3bd;--gold:#ffc93c;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;min-height:100%;}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;user-select:none;-webkit-user-select:none;
+  }
+  .game-bar{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface);
+  }
+  .back{
+    color:var(--dim);text-decoration:none;font-size:.85rem;font-weight:700;
+    padding:10px 12px;border-radius:10px;border:1px solid var(--border);
+    min-height:44px;display:flex;align-items:center;
+  }
+  .back:hover{color:var(--text);}
+  .game-name{font-weight:800;font-size:.95rem;}
+
+  .hud{
+    display:flex;justify-content:space-around;gap:8px;padding:12px;
+    border-bottom:1px solid var(--border);
+  }
+  .hud>div{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:64px;}
+  .hud-label{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:800;}
+  .hud strong{font-size:1.25rem;font-weight:900;font-variant-numeric:tabular-nums;}
+  #best{color:var(--gold);}
+
+  .board-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .board{
+    display:grid;gap:10px;width:100%;max-width:460px;
+    grid-template-columns:repeat(4,1fr);
+  }
+
+  .card{
+    position:relative;aspect-ratio:1/1;border:none;padding:0;cursor:pointer;
+    background:transparent;perspective:800px;
+  }
+  @supports not (aspect-ratio:1){ .card{height:74px;} }
+
+  .card-inner{
+    position:absolute;inset:0;border-radius:14px;
+    transform-style:preserve-3d;
+    transition:transform .32s cubic-bezier(.22,.61,.36,1);
+  }
+  .card.flipped .card-inner,
+  .card.matched .card-inner{transform:rotateY(180deg);}
+
+  .face{
+    position:absolute;inset:0;border-radius:14px;
+    display:flex;align-items:center;justify-content:center;
+    backface-visibility:hidden;-webkit-backface-visibility:hidden;
+    font-size:clamp(1.5rem,7vw,2.2rem);
+  }
+  .face-back{
+    background:linear-gradient(135deg,#6c5ce7,#00d4ff);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.16), 0 6px 18px rgba(108,92,231,.35);
+    color:rgba(255,255,255,.75);font-size:1.1rem;font-weight:900;
+  }
+  .face-front{
+    background:var(--surface2);border:1px solid var(--border);
+    transform:rotateY(180deg);
+  }
+  .card.matched .face-front{
+    border-color:rgba(46,204,113,.6);
+    box-shadow:0 0 0 2px rgba(46,204,113,.28), 0 0 22px rgba(46,204,113,.28);
+  }
+  .card:not(.flipped):not(.matched):active .card-inner{transform:scale(.96);}
+  .card:focus-visible{outline:2px solid #00d4ff;outline-offset:3px;border-radius:14px;}
+
+  .overlay{
+    position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:12px;text-align:center;
+    padding:24px;background:rgba(11,14,20,.9);backdrop-filter:blur(5px);
+  }
+  .overlay[hidden]{display:none;}
+  .overlay h1{margin:0;font-size:1.8rem;font-weight:900;letter-spacing:-.03em;}
+  .overlay p{margin:0;color:var(--dim);font-size:.9rem;max-width:32ch;line-height:1.55;}
+  .btn{
+    margin-top:8px;padding:14px 34px;border-radius:14px;border:none;
+    background:linear-gradient(135deg,#6c5ce7,#00d4ff);color:#fff;
+    font-size:1rem;font-weight:800;cursor:pointer;min-height:52px;
+    box-shadow:0 8px 26px rgba(108,92,231,.45);
+  }
+  .btn:active{transform:scale(.97);}
+</style>
+</head>
+<body>
+
+<header class="game-bar">
+  <a class="back" href="../../index.html">← Back to Game Hub</a>
+  <span class="game-name">🧠 Memory Match</span>
+</header>
+
+<div class="hud">
+  <div><span class="hud-label">Moves</span><strong id="moves">0</strong></div>
+  <div><span class="hud-label">Pairs</span><strong id="pairs">0/8</strong></div>
+  <div><span class="hud-label">Best</span><strong id="best">—</strong></div>
+</div>
+
+<div class="board-wrap">
+  <div class="board" id="board"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <h1>Memory Match</h1>
+  <p>Flip two cards at a time and find all 8 matching pairs. Fewer moves is better.</p>
+  <button class="btn" id="start">Start</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var BEST_KEY = 'gamehub:best:memory-match';
+  var EMOJI = ['🍎','🚀','🎧','⚡','🌙','🎲','🔥','💎'];
+
+  var boardEl  = document.getElementById('board');
+  var movesEl  = document.getElementById('moves');
+  var pairsEl  = document.getElementById('pairs');
+  var bestEl   = document.getElementById('best');
+  var overlay  = document.getElementById('overlay');
+  var startBtn = document.getElementById('start');
+
+  var deck = [];
+  var first = null, second = null;
+  var lock = false;
+  var moves = 0, matched = 0;
+
+  function readBest() {
+    try {
+      var v = parseInt(localStorage.getItem(BEST_KEY), 10);
+      return (isFinite(v) && v > 0) ? v : null;
+    } catch (e) { return null; }
+  }
+  function writeBest(v) {
+    try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) {}
+  }
+  function renderBest() {
+    var b = readBest();
+    bestEl.textContent = b === null ? '—' : String(b);
+  }
+  renderBest();
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function buildDeck() {
+    deck = shuffle(EMOJI.concat(EMOJI).map(function (e, i) {
+      return { id: i, emoji: e };
+    }));
+  }
+
+  function renderBoard() {
+    boardEl.textContent = '';
+    var frag = document.createDocumentFragment();
+
+    deck.forEach(function (item) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'card';
+      btn.setAttribute('data-id', String(item.id));
+      btn.setAttribute('aria-label', 'Hidden card');
+
+      var inner = document.createElement('div');
+      inner.className = 'card-inner';
+
+      var back = document.createElement('div');
+      back.className = 'face face-back';
+      back.textContent = '?';
+
+      var front = document.createElement('div');
+      front.className = 'face face-front';
+      front.textContent = item.emoji;
+
+      inner.appendChild(back);
+      inner.appendChild(front);
+      btn.appendChild(inner);
+      frag.appendChild(btn);
+    });
+
+    boardEl.appendChild(frag);
+  }
+
+  function newGame() {
+    first = null; second = null;
+    lock = false;
+    moves = 0; matched = 0;
+    movesEl.textContent = '0';
+    pairsEl.textContent = '0/8';
+    buildDeck();
+    renderBoard();
+    overlay.hidden = true;
+  }
+
+  function onCardClick(e) {
+    var card = e.target.closest('.card');
+    if (!card || lock) return;
+    if (card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+    card.classList.add('flipped');
+    card.setAttribute('aria-label', 'Revealed card');
+
+    if (!first) {
+      first = card;
+      return;
+    }
+
+    second = card;
+    moves++;
+    movesEl.textContent = String(moves);
+    lock = true;
+
+    var a = deck[Number(first.getAttribute('data-id'))].emoji;
+    var b = deck[Number(second.getAttribute('data-id'))].emoji;
+
+    if (a === b) {
+      setTimeout(function () {
+        first.classList.add('matched');
+        second.classList.add('matched');
+        first = null; second = null; lock = false;
+        matched++;
+        pairsEl.textContent = matched + '/8';
+        if (matched === 8) win();
+      }, 280);
+    } else {
+      setTimeout(function () {
+        first.classList.remove('flipped');
+        second.classList.remove('flipped');
+        first.setAttribute('aria-label', 'Hidden card');
+        second.setAttribute('aria-label', 'Hidden card');
+        first = null; second = null; lock = false;
+      }, 760);
+    }
+  }
+
+  function win() {
+    var best = readBest();
+    var isRecord = (best === null || moves < best);
+    if (isRecord) { writeBest(moves); renderBest(); }
+
+    overlay.querySelector('h1').textContent = isRecord ? '🏆 New Record!' : '🎉 Solved!';
+    overlay.querySelector('p').textContent = isRecord
+      ? 'You finished in ' + moves + ' moves — a new best!'
+      : 'You finished in ' + moves + ' moves. Best: ' + best + '.';
+    startBtn.textContent = 'Play Again';
+    overlay.hidden = false;
+  }
+
+  boardEl.addEventListener('click', onCardClick);
+  startBtn.addEventListener('click', newGame);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !overlay.hidden) { e.preventDefault(); newGame(); }
+  });
+
+  buildDeck();
+  renderBoard();
+})();
+</script>
+</body>
+</html>
