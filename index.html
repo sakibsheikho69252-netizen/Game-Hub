@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0e14">
+  <meta name="description" content="Game Hub — a fast, static library of instant-play browser games.">
+  <title>Game Hub</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#library">Skip to games</a>
+
+  <!-- ========== HEADER ========== -->
+  <header class="site-header">
+    <a class="logo" href="./">
+      <span class="logo-icon" aria-hidden="true">🎮</span>
+      <span>Game Hub</span>
+    </a>
+
+    <nav class="main-nav" id="main-nav" aria-label="Main">
+      <a class="nav-link" href="./">Home</a>
+      <a class="nav-link" href="#library">Games</a>
+      <a class="nav-link" href="#library" data-action="show-favorites">Favorites</a>
+    </nav>
+
+    <div class="header-actions">
+      <button type="button" class="icon-btn" id="theme-toggle" aria-label="Switch theme">🌙</button>
+      <button type="button" class="icon-btn" id="settings-btn" aria-label="Settings">⚙️</button>
+      <button type="button" class="icon-btn menu-btn" id="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="main-nav">☰</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ========== HERO ========== -->
+    <section class="hero" id="hero" aria-label="Featured game">
+      <!-- filled by JS -->
+    </section>
+
+    <!-- ========== RECENTLY PLAYED ========== -->
+    <section class="section" id="recent-section" hidden>
+      <div class="section-header">
+        <h2 class="section-title">Recently Played</h2>
+        <button type="button" class="clear-recent-btn" data-action="clear-recent">Clear</button>
+      </div>
+      <div class="recent-row" id="recent-row"></div>
+    </section>
+
+    <!-- ========== LIBRARY ========== -->
+    <section class="section" id="library">
+      <div class="section-header">
+        <h2 class="section-title">Game Library</h2>
+      </div>
+
+      <div class="toolbar">
+        <div class="search-wrap">
+          <label class="sr-only" for="search-input">Search games</label>
+          <input type="search" id="search-input" placeholder="Search games…" autocomplete="off" enterkeyhint="search">
+          <button type="button" class="search-clear" id="search-clear" hidden aria-label="Clear search">✕</button>
+        </div>
+
+        <div class="filter-row" id="category-chips" role="group" aria-label="Categories">
+          <!-- filled by JS -->
+        </div>
+
+        <div class="filter-row">
+          <button type="button" class="toggle-chip" data-toggle="new" aria-pressed="false">✨ New</button>
+          <button type="button" class="toggle-chip" data-toggle="featured" aria-pressed="false">⭐ Featured</button>
+          <button type="button" class="toggle-chip" data-toggle="favorites" aria-pressed="false">★ Favorites</button>
+
+          <div class="select-wrap">
+            <label class="sr-only" for="difficulty-select">Difficulty</label>
+            <select id="difficulty-select">
+              <option value="All">All difficulties</option>
+            </select>
+          </div>
+
+          <div class="select-wrap">
+            <label class="sr-only" for="sort-select">Sort by</label>
+            <select id="sort-select">
+              <option value="featured">Featured</option>
+              <option value="newest">Newest</option>
+              <option value="alphabetical">A–Z</option>
+              <option value="recent">Recently Played</option>
+              <option value="plays">Most Played</option>
+              <option value="favorites">Favorites First</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-bar">
+        <span class="results-count" id="results-count"></span>
+        <button type="button" class="reset-btn" id="reset-filters" hidden>Reset filters</button>
+      </div>
+
+      <div id="library-status" aria-live="polite"></div>
+      <div class="game-grid" id="game-grid" role="list"></div>
+
+      <div class="load-more-wrap">
+        <button type="button" class="btn btn-ghost" id="load-more" hidden>Load more</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Game Hub — static, offline-friendly, no accounts required.</p>
+    <p>Add games via <code>games.json</code> · See <a href="README.md">README</a></p>
+  </footer>
+
+  <!-- ========== DETAIL MODAL ========== -->
+  <div class="modal" id="detail-modal" hidden role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h2 class="modal-title">Game Details</h2>
+        <button type="button" class="modal-close" data-close-modal aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- ========== SETTINGS MODAL ========== -->
+  <div class="modal" id="settings-modal" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h2 class="modal-title" id="settings-title">Settings</h2>
+        <button type="button" class="modal-close" data-close-modal aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <h3>Appearance</h3>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Theme</div>
+              <div class="setting-desc">Dark, light, or match system</div>
+            </div>
+            <select id="setting-theme">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Reduce motion</div>
+              <div class="setting-desc">Minimize animations</div>
+            </div>
+            <input type="checkbox" id="setting-motion">
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Compact cards</div>
+              <div class="setting-desc">Smaller cards, denser grid</div>
+            </div>
+            <input type="checkbox" id="setting-compact">
+          </div>
+        </div>
+
+        <div class="settings-group danger-zone">
+          <h3>Data</h3>
+          <button type="button" class="btn btn-ghost" id="clear-favorites">Clear favorites</button>
+          <button type="button" class="btn btn-ghost" id="clear-recent">Clear recently played</button>
+          <button type="button" class="btn btn-ghost" id="clear-plays">Clear play counts</button>
+          <button type="button" class="btn btn-ghost" id="reset-all">Reset all Game Hub data</button>
+          <p id="storage-note"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/games.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

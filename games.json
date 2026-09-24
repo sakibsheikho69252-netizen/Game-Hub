@@ -1,0 +1,63 @@
+{
+  "games": [
+    {
+      "id": "tap-rush",
+      "title": "Tap Rush",
+      "description": "Tap the glowing target as fast as you can. 30 seconds of pure reflex.",
+      "folder": "tap-rush",
+      "category": "Arcade",
+      "tags": ["arcade", "reflex", "tap", "casual"],
+      "icon": "👆",
+      "difficulty": "Easy",
+      "version": "1.0.0",
+      "featured": true,
+      "new": true,
+      "releaseDate": "2026-09-20",
+      "author": "Game Hub",
+      "controls": "Touch / Mouse / Enter"
+    },
+    {
+      "id": "star-dodger",
+      "title": "Star Dodger",
+      "description": "Dodge the falling stars. Survive as long as you can in deep space.",
+      "folder": "star-dodger",
+      "category": "Arcade",
+      "tags": ["arcade", "dodging", "space", "endless"],
+      "icon": "🚀",
+      "difficulty": "Medium",
+      "version": "1.0.0",
+      "featured": true,
+      "new": false,
+      "releaseDate": "2026-09-18",
+      "author": "Game Hub",
+      "controls": "Drag / ← → / A D"
+    },
+    {
+      "id": "memory-match",
+      "title": "Memory Match",
+      "description": "Flip cards and find all matching pairs. Fewer moves is better.",
+      "folder": "memory-match",
+      "category": "Puzzle",
+      "tags": ["puzzle", "memory", "cards", "brain"],
+      "icon": "🧠",
+      "difficulty": "Medium",
+      "version": "1.0.0",
+      "featured": false,
+      "new": true,
+      "releaseDate": "2026-09-22",
+      "author": "Game Hub",
+      "controls": "Touch / Click"
+    },
+    {
+      "id": "reaction-test",
+      "title": "Reaction Test",
+      "folder": "reaction-test",
+      "icon": "⚡",
+      "category": "Casual",
+      "tags": ["reaction", "speed", "test"],
+      "difficulty": "Easy",
+      "new": false,
+      "featured": false
+    }
+  ]
+}
