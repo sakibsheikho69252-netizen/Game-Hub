@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0b1020">
+<title>Tetris</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  height:100%; width:100%; overflow:hidden;
+  background:#0b1020; color:#fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  user-select:none; -webkit-user-select:none;
+}
+body { display:flex; align-items:center; justify-content:center; }
+
+.app {
+  width:100%; height:100%; max-width:480px;
+  padding:8px;
+  display:flex; flex-direction:column; gap:6px;
+}
+
+/* HUD */
+.hud {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:5px;
+  flex-shrink:0;
+}
+.hud > div {
+  background:#101827; border:1px solid #26334a;
+  border-radius:8px; padding:5px 3px; text-align:center;
+}
+.hud .lbl {
+  display:block; font-size:8px; color:#98a3bd;
+  letter-spacing:.08em; text-transform:uppercase; font-weight:800;
+}
+.hud .val {
+  display:block; font-size:14px; font-weight:900;
+  font-variant-numeric:tabular-nums; margin-top:1px;
+}
+.hud .gold { color:#ffc93c; }
+
+/* Previews (Hold + Next) */
+.previews {
+  display:grid; grid-template-columns:1fr 1fr; gap:6px;
+  flex-shrink:0;
+}
+.preview-box {
+  background:#101827; border:1px solid #26334a;
+  border-radius:8px; padding:4px 6px 6px;
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+}
+.preview-box .lbl {
+  font-size:8px; color:#98a3bd;
+  letter-spacing:.08em; text-transform:uppercase; font-weight:800;
+}
+.preview-box canvas {
+  display:block; width:64px; height:40px;
+  image-rendering:pixelated;
+}
+
+/* Stage */
+#stage {
+  flex:1; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+  position:relative;
+}
+.board {
+  position:relative;
+  background:#080d16;
+  border:2px solid #26334a;
+  border-radius:10px;
+  overflow:hidden;
+}
+#canvas {
+  display:block; width:100%; height:100%;
+  touch-action:none;
+}
+
+/* Overlay */
+#overlay {
+  position:absolute; inset:0;
+  background:rgba(8,13,22,.92);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:10px; padding:16px; text-align:center;
+  z-index:10;
+}
+#overlay.hidden { display:none; }
+#overlay h2 { font-size:20px; font-weight:900; }
+#overlay p { font-size:11px; color:#98a3bd; max-width:200px; line-height:1.5; }
+#overlay button {
+  margin-top:4px; padding:10px 24px;
+  border:0; border-radius:10px;
+  background:linear-gradient(135deg,#6c5ce7,#00d4ff);
+  color:#fff; font-size:13px; font-weight:800;
+  cursor:pointer;
+}
+#overlay button:active { transform:scale(.95); }
+
+/* Controls */
+.controls {
+  display:grid; grid-template-columns:repeat(5,1fr); gap:5px;
+  flex-shrink:0;
+}
+.controls button {
+  height:48px;
+  border:1px solid #26334a; border-radius:10px;
+  background:linear-gradient(145deg,#172236,#0f1828);
+  color:#fff; font-size:18px; font-weight:900;
+  cursor:pointer; touch-action:none;
+}
+.controls button:active { background:#25344c; transform:scale(.94); }
+.controls button.wide { grid-column:span 2; font-size:12px; letter-spacing:0.02em; }
+
+@media (max-height:640px) {
+  .controls button { height:40px; font-size:15px; }
+  .preview-box canvas { width:52px; height:34px; }
+  .previews { gap:4px; }
+  .preview-box { padding:3px 4px 4px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="hud">
+    <div><span class="lbl">Score</span><span class="val" id="score">0</span></div>
+    <div><span class="lbl">Best</span><span class="val gold" id="best">0</span></div>
+    <div><span class="lbl">Lines</span><span class="val" id="lines">0</span></div>
+    <div><span class="lbl">Level</span><span class="val" id="level">1</span></div>
+  </div>
+
+  <div class="previews">
+    <div class="preview-box">
+      <span class="lbl">Hold</span>
+      <canvas id="holdCanvas"></canvas>
+    </div>
+    <div class="preview-box">
+      <span class="lbl">Next</span>
+      <canvas id="nextCanvas"></canvas>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div class="board" id="board">
+      <canvas id="canvas"></canvas>
+      <div id="overlay">
+        <h2 id="ovTitle">TETRIS</h2>
+        <p id="ovText">Fill rows to clear them. Don't let the stack reach the top!</p>
+        <button id="startBtn">START</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button data-act="left">←</button>
+    <button data-act="rotate">↻</button>
+    <button data-act="right">→</button>
+    <button data-act="down">↓</button>
+    <button data-act="drop">⤓</button>
+    <button data-act="hold" class="wide">HOLD</button>
+    <button data-act="ccw" class="wide">↺ CCW</button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- Constants ----------
+  var COLS = 10, ROWS = 20;
+  var COLORS = { I:'#00d4ff', O:'#ffc93c', T:'#a89bfa', S:'#2ecc71', Z:'#e74c3c', J:'#5a4bd1', L:'#ff8c42' };
+  var SHAPES = {
+    I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+    O: [[1,1],[1,1]],
+    T: [[0,1,0],[1,1,1],[0,0,0]],
+    S: [[0,1,1],[1,1,0],[0,0,0]],
+    Z: [[1,1,0],[0,1,1],[0,0,0]],
+    J: [[1,0,0],[1,1,1],[0,0,0]],
+    L: [[0,0,1],[1,1,1],[0,0,0]]
+  };
+  var TYPES = ['I','O','T','S','Z','J','L'];
+  var BEST_KEY = 'gamehub:best:tetris';
+
+  // ---------- DOM ----------
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var holdCanvas = document.getElementById('holdCanvas');
+  var holdCtx = holdCanvas.getContext('2d');
+  var nextCanvas = document.getElementById('nextCanvas');
+  var nextCtx = nextCanvas.getContext('2d');
+  var boardEl = document.getElementById('board');
+  var stageEl = document.getElementById('stage');
+  var overlay = document.getElementById('overlay');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var startBtn = document.getElementById('startBtn');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var linesEl = document.getElementById('lines');
+  var levelEl = document.getElementById('level');
+
+  // ---------- State ----------
+  var grid = null;
+  var piece = null;
+  var queue = [];
+  var hold = null;
+  var canHold = true;
+  var score = 0, lines = 0, level = 1;
+  var state = 'idle'; // idle | play | pause | over
+  var timer = null;
+  var dropMs = 800;
+  var cellW = 20, cellH = 20;
+  var best = Number(localStorage.getItem(BEST_KEY)) || 0;
+  var prevBest = best;
+
+  bestEl.textContent = best;
+
+  // ---------- Helpers ----------
+  function makeGrid() {
+    var g = [];
+    for (var y = 0; y < ROWS; y++) {
+      var row = [];
+      for (var x = 0; x < COLS; x++) row.push(null);
+      g.push(row);
+    }
+    return g;
+  }
+
+  function newBag() {
+    var bag = TYPES.slice();
+    for (var i = bag.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+    }
+    return bag;
+  }
+
+  function fillQueue() {
+    while (queue.length < 7) {
+      queue = queue.concat(newBag());
+    }
+  }
+
+  function makePiece(type) {
+    var shape = SHAPES[type];
+    var rows = [];
+    for (var i = 0; i < shape.length; i++) rows.push(shape[i].slice());
+    return {
+      type: type,
+      shape: rows,
+      x: Math.floor((COLS - shape[0].length) / 2),
+      y: 0
+    };
+  }
+
+  function hits(p, shape, x, y) {
+    shape = shape || p.shape;
+    x = (x == null) ? p.x : x;
+    y = (y == null) ? p.y : y;
+    for (var py = 0; py < shape.length; py++) {
+      for (var px = 0; px < shape[py].length; px++) {
+        if (!shape[py][px]) continue;
+        var bx = x + px, by = y + py;
+        if (bx < 0 || bx >= COLS) return true;
+        if (by >= ROWS) return true;
+        if (by >= 0 && grid[by][bx]) return true;
+      }
+    }
+    return false;
+  }
+
+  function rotateCW(m) {
+    var n = m.length, out = [];
+    for (var i = 0; i < n; i++) { var r = []; for (var j = 0; j < n; j++) r.push(0); out.push(r); }
+    for (var y = 0; y < n; y++)
+      for (var x = 0; x < n; x++)
+        out[x][n - 1 - y] = m[y][x];
+    return out;
+  }
+
+  function rotateCCW(m) {
+    var n = m.length, out = [];
+    for (var i = 0; i < n; i++) { var r = []; for (var j = 0; j < n; j++) r.push(0); out.push(r); }
+    for (var y = 0; y < n; y++)
+      for (var x = 0; x < n; x++)
+        out[n - 1 - x][y] = m[y][x];
+    return out;
+  }
+
+  // ---------- Sizing ----------
+  function sizeBoard() {
+    var availW = stageEl.clientWidth;
+    var availH = stageEl.clientHeight;
+    if (availW < 20 || availH < 40) {
+      setTimeout(sizeBoard, 80);
+      return;
+    }
+
+    var w = availW, h = w * 2;
+    if (h > availH) { h = availH; w = h / 2; }
+    boardEl.style.width = Math.floor(w) + 'px';
+    boardEl.style.height = Math.floor(h) + 'px';
+
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width < 20) { setTimeout(sizeBoard, 80); return; }
+
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cellW = rect.width / COLS;
+    cellH = rect.height / ROWS;
+
+    // Preview canvases
+    sizePreview(holdCanvas, holdCtx);
+    sizePreview(nextCanvas, nextCtx);
+
+    render();
+    renderPreviews();
+  }
+
+  function sizePreview(c, cctx) {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var cssW = Math.max(c.clientWidth || 64, 40);
+    var cssH = Math.max(c.clientHeight || 40, 28);
+    c.width = Math.round(cssW * dpr);
+    c.height = Math.round(cssH * dpr);
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // ---------- Drawing ----------
+  function drawBlock(x, y, color, alpha, cctx, cw, ch) {
+    cctx = cctx || ctx;
+    cw = cw || cellW;
+    ch = ch || cellH;
+    var pad = Math.max(1, cw * 0.07);
+    cctx.globalAlpha = (alpha == null) ? 1 : alpha;
+    cctx.fillStyle = color;
+    cctx.fillRect(x + pad, y + pad, cw - pad * 2, ch - pad * 2);
+    cctx.fillStyle = 'rgba(255,255,255,0.30)';
+    cctx.fillRect(x + pad, y + pad, cw - pad * 2, Math.max(2, ch * 0.18));
+    cctx.globalAlpha = 1;
+  }
+
+  function render() {
+    if (!grid) return;
+    if (cellW < 1 || cellH < 1) return;
+
+    var W = COLS * cellW, H = ROWS * cellH;
+
+    ctx.fillStyle = '#080d16';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    for (var i = 1; i < COLS; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * cellW + 0.5, 0);
+      ctx.lineTo(i * cellW + 0.5, H);
+      ctx.stroke();
+    }
+    for (var j = 1; j < ROWS; j++) {
+      ctx.beginPath();
+      ctx.moveTo(0, j * cellH + 0.5);
+      ctx.lineTo(W, j * cellH + 0.5);
+      ctx.stroke();
+    }
+
+    // Locked blocks
+    for (var y = 0; y < ROWS; y++) {
+      for (var x = 0; x < COLS; x++) {
+        if (grid[y][x]) drawBlock(x * cellW, y * cellH, COLORS[grid[y][x]]);
+      }
+    }
+
+    if (!piece) return;
+
+    // Ghost
+    var gy = piece.y;
+    while (!hits(piece, piece.shape, piece.x, gy + 1)) gy++;
+    for (var py = 0; py < piece.shape.length; py++) {
+      for (var px = 0; px < piece.shape[py].length; px++) {
+        if (!piece.shape[py][px]) continue;
+        var by = gy + py;
+        if (by >= 0) drawBlock((piece.x + px) * cellW, by * cellH, COLORS[piece.type], 0.22);
+      }
+    }
+
+    // Current piece
+    for (var py2 = 0; py2 < piece.shape.length; py2++) {
+      for (var px2 = 0; px2 < piece.shape[py2].length; px2++) {
+        if (!piece.shape[py2][px2]) continue;
+        var by2 = piece.y + py2;
+        if (by2 >= 0) drawBlock((piece.x + px2) * cellW, by2 * cellH, COLORS[piece.type]);
+      }
+    }
+  }
+
+  function drawMiniPiece(type, cctx, canvasEl) {
+    var cssW = Math.max(canvasEl.clientWidth || 64, 40);
+    var cssH = Math.max(canvasEl.clientHeight || 40, 28);
+    cctx.clearRect(0, 0, cssW + 2, cssH + 2);
+    if (!type) return;
+
+    var shape = SHAPES[type];
+    var rows = shape.length, cols = shape[0].length;
+    var cell = Math.min(cssW / (cols + 0.8), cssH / (rows + 0.4));
+    if (cell < 4) cell = 4;
+    var offsetX = (cssW - cols * cell) / 2;
+    var offsetY = (cssH - rows * cell) / 2;
+
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        if (shape[y][x]) {
+          drawBlock(offsetX + x * cell, offsetY + y * cell, COLORS[type], 1, cctx, cell, cell);
+        }
+      }
+    }
+  }
+
+  function renderPreviews() {
+    try {
+      drawMiniPiece(hold, holdCtx, holdCanvas);
+      var nextType = queue.length ? queue[0] : null;
+      drawMiniPiece(nextType, nextCtx, nextCanvas);
+    } catch (e) {}
+  }
+
+  // ---------- Actions ----------
+  function move(dx) {
+    if (state !== 'play' || !piece) return;
+    if (!hits(piece, piece.shape, piece.x + dx, piece.y)) {
+      piece.x += dx;
+      render();
+    }
+  }
+
+  function rotate(dir) {
+    if (state !== 'play' || !piece) return;
+    if (piece.type === 'O') return;
+    var rotated = (dir === 1) ? rotateCW(piece.shape) : rotateCCW(piece.shape);
+    var kicks = [0, -1, 1, -2, 2];
+    for (var i = 0; i < kicks.length; i++) {
+      if (!hits(piece, rotated, piece.x + kicks[i], piece.y)) {
+        piece.shape = rotated;
+        piece.x += kicks[i];
+        render();
+        return;
+      }
+    }
+  }
+
+  function step() {
+    if (state !== 'play' || !piece) return;
+    if (!hits(piece, piece.shape, piece.x, piece.y + 1)) {
+      piece.y++;
+      render();
+    } else {
+      lockPiece();
+    }
+  }
+
+  function softDrop() {
+    if (state !== 'play' || !piece) return;
+    if (!hits(piece, piece.shape, piece.x, piece.y + 1)) {
+      piece.y++;
+      score += 1; // soft drop point
+      updateHUD();
+      render();
+    } else {
+      lockPiece();
+    }
+  }
+
+  function hardDrop() {
+    if (state !== 'play' || !piece) return;
+    var dropped = 0;
+    while (!hits(piece, piece.shape, piece.x, piece.y + 1)) {
+      piece.y++;
+      dropped++;
+    }
+    if (dropped > 0) {
+      score += dropped * 2; // hard drop points
+      updateHUD();
+    }
+    lockPiece();
+  }
+
+  function doHold() {
+    if (state !== 'play' || !piece || !canHold) return;
+    var prev = hold;
+    hold = piece.type;
+    if (prev) {
+      piece = makePiece(prev);
+    } else {
+      fillQueue();
+      piece = makePiece(queue.shift());
+      fillQueue();
+    }
+    canHold = false;
+    if (hits(piece)) { gameOver(); return; }
+    render();
+    renderPreviews();
+  }
+
+  function lockPiece() {
+    // Place into grid
+    for (var py = 0; py < piece.shape.length; py++) {
+      for (var px = 0; px < piece.shape[py].length; px++) {
+        if (!piece.shape[py][px]) continue;
+        var by = piece.y + py;
+        var bx = piece.x + px;
+        if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+          grid[by][bx] = piece.type;
+        }
+      }
+    }
+
+    // Clear lines
+    var cleared = 0;
+    for (var y = ROWS - 1; y >= 0; y--) {
+      var full = true;
+      for (var x = 0; x < COLS; x++) {
+        if (!grid[y][x]) { full = false; break; }
+      }
+      if (full) {
+        grid.splice(y, 1);
+        grid.unshift(new Array(COLS).fill(null));
+        cleared++;
+        y++;
+      }
+    }
+
+    if (cleared > 0) {
+      var pts = [0, 100, 300, 500, 800][cleared];
+      score += pts * level;
+      lines += cleared;
+      var newLevel = Math.floor(lines / 10) + 1;
+      if (newLevel > level) {
+        level = newLevel;
+        dropMs = Math.max(80, 800 * Math.pow(0.85, level - 1));
+        restartTimer();
+      }
+      updateHUD();
+    }
+
+    // Spawn next
+    fillQueue();
+    piece = makePiece(queue.shift());
+    fillQueue();
+    canHold = true;
+
+    if (hits(piece)) { gameOver(); return; }
+
+    render();
+    renderPreviews();
+  }
+
+  // ---------- Timer ----------
+  function restartTimer() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(step, dropMs);
+  }
+
+  function stopTimer() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  // ---------- HUD ----------
+  function updateHUD() {
+    scoreEl.textContent = score.toLocaleString();
+    linesEl.textContent = lines;
+    levelEl.textContent = level;
+    var showBest = Math.max(best, score);
+    bestEl.textContent = showBest.toLocaleString();
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {}
+    }
+  }
+
+  // ---------- Flow ----------
+  function newGame() {
+    grid = makeGrid();
+    queue = [];
+    hold = null;
+    canHold = true;
+    score = 0; lines = 0; level = 1;
+    dropMs = 800;
+    state = 'play';
+    prevBest = best;
+
+    fillQueue();
+    piece = makePiece(queue.shift());
+    fillQueue();
+
+    updateHUD();
+    sizeBoard();
+    overlay.classList.add('hidden');
+    restartTimer();
+    renderPreviews();
+  }
+
+  function gameOver() {
+    state = 'over';
+    stopTimer();
+    updateHUD();
+    var isRecord = score > 0 && score > prevBest;
+    ovTitle.textContent = isRecord ? '🏆 New Best!' : 'Game Over';
+    ovText.textContent = 'Score: ' + score.toLocaleString();
+    startBtn.textContent = 'PLAY AGAIN';
+    overlay.classList.remove('hidden');
+  }
+
+  function pauseGame() {
+    if (state === 'play') {
+      state = 'pause';
+      stopTimer();
+      ovTitle.textContent = 'Paused';
+      ovText.textContent = 'Tap Resume to continue.';
+      startBtn.textContent = 'RESUME';
+      overlay.classList.remove('hidden');
+    } else if (state === 'pause') {
+      state = 'play';
+      restartTimer();
+      overlay.classList.add('hidden');
+    }
+  }
+
+  // ---------- Input ----------
+  document.addEventListener('keydown', function(e) {
+    var k = e.key;
+    if (k === 'ArrowLeft')  { e.preventDefault(); move(-1); }
+    else if (k === 'ArrowRight') { e.preventDefault(); move(1); }
+    else if (k === 'ArrowDown')  { e.preventDefault(); softDrop(); }
+    else if (k === 'ArrowUp' || k === 'x' || k === 'X') { e.preventDefault(); rotate(1); }
+    else if (k === 'z' || k === 'Z') { e.preventDefault(); rotate(-1); }
+    else if (k === ' ') { e.preventDefault(); hardDrop(); }
+    else if (k === 'c' || k === 'C') { e.preventDefault(); doHold(); }
+    else if (k === 'p' || k === 'P') { e.preventDefault(); pauseGame(); }
+  });
+
+  var buttons = document.querySelectorAll('[data-act]');
+  for (var b = 0; b < buttons.length; b++) {
+    (function(btn){
+      var act = btn.getAttribute('data-act');
+      var holdDelay = null, holdInt = null;
+
+      function fire() {
+        if (act === 'left') move(-1);
+        else if (act === 'right') move(1);
+        else if (act === 'rotate') rotate(1);
+        else if (act === 'ccw') rotate(-1);
+        else if (act === 'down') softDrop();
+        else if (act === 'drop') hardDrop();
+        else if (act === 'hold') doHold();
+      }
+      function stop() {
+        clearTimeout(holdDelay); clearInterval(holdInt);
+        holdDelay = null; holdInt = null;
+      }
+
+      btn.addEventListener('pointerdown', function(e){
+        e.preventDefault();
+        fire();
+        if (act === 'left' || act === 'right' || act === 'down') {
+          holdDelay = setTimeout(function(){
+            holdInt = setInterval(fire, 80);
+          }, 200);
+        }
+      });
+      btn.addEventListener('pointerup', stop);
+      btn.addEventListener('pointercancel', stop);
+      btn.addEventListener('pointerleave', stop);
+    })(buttons[b]);
+  }
+
+  startBtn.addEventListener('click', function(){
+    if (state === 'pause') pauseGame();
+    else newGame();
+  });
+
+  window.addEventListener('resize', sizeBoard);
+  window.addEventListener('orientationchange', function(){
+    setTimeout(sizeBoard, 200);
+  });
+
+  // ---------- Init ----------
+  grid = makeGrid();
+  queue = [];
+  fillQueue();
+  updateHUD();
+  sizeBoard();
+  setTimeout(sizeBoard, 200);
+  setTimeout(sizeBoard, 600);
+
+})();
+</script>
+
+</body>
+</html>
