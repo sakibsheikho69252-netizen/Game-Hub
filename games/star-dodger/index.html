@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#05060b">
+<title>Star Dodger — Game Hub</title>
+<style>
+  :root{--bg:#05060b;--surface:#12151f;--border:#242a3a;--text:#e8ecf5;--dim:#98a3bd;--gold:#ffc93c;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;overflow:hidden;
+    user-select:none;-webkit-user-select:none;touch-action:none;
+  }
+  .game-bar{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface);
+  }
+  .back{
+    color:var(--dim);text-decoration:none;font-size:.85rem;font-weight:700;
+    padding:10px 12px;border-radius:10px;border:1px solid var(--border);
+    min-height:44px;display:flex;align-items:center;
+  }
+  .back:hover{color:var(--text);}
+  .game-name{font-weight:800;font-size:.95rem;}
+
+  .hud{
+    flex:0 0 auto;display:flex;justify-content:space-around;padding:10px 12px;
+    border-bottom:1px solid var(--border);gap:8px;
+  }
+  .hud>div{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:60px;}
+  .hud-label{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:800;}
+  .hud strong{font-size:1.2rem;font-weight:900;font-variant-numeric:tabular-nums;}
+  #best{color:var(--gold);}
+
+  .stage{position:relative;flex:1 1 auto;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:12px;text-align:center;
+    padding:24px;background:rgba(5,6,11,.86);backdrop-filter:blur(4px);
+  }
+  .overlay[hidden]{display:none;}
+  .overlay h1{margin:0;font-size:1.8rem;font-weight:900;letter-spacing:-.03em;}
+  .overlay p{margin:0;color:var(--dim);font-size:.9rem;max-width:34ch;line-height:1.55;}
+  .final{font-size:1rem;font-weight:800;}
+  .final span{color:var(--gold);font-size:1.5rem;}
+  .btn{
+    margin-top:8px;padding:14px 34px;border-radius:14px;border:none;
+    background:linear-gradient(135deg,#6c5ce7,#00d4ff);color:#fff;
+    font-size:1rem;font-weight:800;cursor:pointer;min-height:52px;
+    box-shadow:0 8px 26px rgba(108,92,231,.45);
+  }
+  .btn:active{transform:scale(.97);}
+  .hint{font-size:.72rem;color:#6a7590;}
+</style>
+</head>
+<body>
+
+<header class="game-bar">
+  <a class="back" href="../../index.html">← Back to Game Hub</a>
+  <span class="game-name">🚀 Star Dodger</span>
+</header>
+
+<div class="hud">
+  <div><span class="hud-label">Score</span><strong id="score">0</strong></div>
+  <div><span class="hud-label">Best</span><strong id="best">0</strong></div>
+</div>
+
+<div class="stage" id="stage">
+  <canvas id="c"></canvas>
+  <div class="overlay" id="overlay">
+    <h1>Star Dodger</h1>
+    <p>Dodge the falling stars. Drag anywhere on the screen — or use ← → / A D on desktop.</p>
+    <div class="final" id="overlay-final" hidden>Score: <span id="final-score">0</span></div>
+    <button class="btn" id="start">Start</button>
+    <p class="hint">Survive as long as you can.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var BEST_KEY = 'gamehub:best:star-dodger';
+
+  var stage   = document.getElementById('stage');
+  var canvas  = document.getElementById('c');
+  var ctx     = canvas.getContext('2d');
+  var overlay = document.getElementById('overlay');
+  var oFinal  = document.getElementById('overlay-final');
+  var finalEl = document.getElementById('final-score');
+  var startBtn= document.getElementById('start');
+  var scoreEl = document.getElementById('score');
+  var bestEl  = document.getElementById('best');
+
+  var W = 0, H = 0, dpr = 1;
+  var running = false, rafId = null, lastT = 0;
+
+  var player = { x: 0, y: 0, w: 34, h: 34, targetX: 0 };
+  var stars = [];
+  var spawnTimer = 0;
+  var score = 0;
+  var keys = { left: false, right: false };
+
+  function readBest() {
+    try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; }
+    catch (e) { return 0; }
+  }
+  function writeBest(v) {
+    try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) {}
+  }
+  bestEl.textContent = readBest();
+
+  function resize() {
+    var r = stage.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    W = r.width;
+    H = r.height;
+
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    player.w = Math.max(28, Math.min(44, W * 0.11));
+    player.h = player.w;
+    player.y = H - player.h - 18;
+
+    if (!running) {
+      player.x = W / 2 - player.w / 2;
+      player.targetX = player.x;
+    } else {
+      player.x = Math.min(Math.max(0, player.x), W - player.w);
+      player.targetX = player.x;
+    }
+    draw();
+  }
+
+  function reset() {
+    stars = [];
+    spawnTimer = 0;
+    score = 0;
+    scoreEl.textContent = '0';
+    player.x = W / 2 - player.w / 2;
+    player.targetX = player.x;
+  }
+
+  function start() {
+    resize();
+    reset();
+    running = true;
+    lastT = performance.now();
+    overlay.hidden = true;
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function end() {
+    running = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+    var best = readBest();
+    var isRecord = score > best;
+    if (isRecord) { writeBest(score); bestEl.textContent = String(score); }
+
+    overlay.querySelector('h1').textContent = isRecord ? '🏆 New Best!' : 'Game Over';
+    overlay.querySelector('p').textContent = isRecord
+      ? 'You beat your previous record of ' + best + '.'
+      : 'You survived ' + Math.floor(score) + ' points. Best: ' + best + '.';
+    finalEl.textContent = String(Math.floor(score));
+    oFinal.hidden = false;
+    startBtn.textContent = 'Play Again';
+    overlay.hidden = false;
+  }
+
+  function spawnStar() {
+    var r = 4 + Math.random() * 7;
+    stars.push({
+      x: Math.random() * (W - r * 2) + r,
+      y: -r * 2,
+      r: r,
+      vy: 90 + Math.random() * 110 + score * 2.2
+    });
+  }
+
+  function loop(t) {
+    if (!running) return;
+
+    var dt = Math.min(0.05, (t - lastT) / 1000);
+    lastT = t;
+
+    score += dt * 10;
+    scoreEl.textContent = String(Math.floor(score));
+
+    var speed = 340;
+    if (keys.left)  player.targetX -= speed * dt;
+    if (keys.right) player.targetX += speed * dt;
+    player.targetX = Math.min(Math.max(0, player.targetX), W - player.w);
+    player.x += (player.targetX - player.x) * Math.min(1, dt * 16);
+
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnStar();
+      var interval = Math.max(0.16, 0.6 - score * 0.004);
+      spawnTimer = interval * (0.6 + Math.random() * 0.8);
+    }
+
+    for (var i = stars.length - 1; i >= 0; i--) {
+      var s = stars[i];
+      s.y += s.vy * dt;
+      if (s.y - s.r > H) { stars.splice(i, 1); continue; }
+
+      var cx = Math.max(player.x, Math.min(s.x, player.x + player.w));
+      var cy = Math.max(player.y, Math.min(s.y, player.y + player.h));
+      var dx = s.x - cx, dy = s.y - cy;
+      if (dx * dx + dy * dy < s.r * s.r) { end(); return; }
+    }
+
+    draw();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function draw() {
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#080a12');
+    bg.addColorStop(1, '#0d1220');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      var g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 2.4);
+      g.addColorStop(0, 'rgba(255,255,255,.95)');
+      g.addColorStop(0.35, 'rgba(0,212,255,.65)');
+      g.addColorStop(1, 'rgba(0,212,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    var px = player.x + player.w / 2;
+    var py = player.y;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(108,92,231,.9)';
+    ctx.shadowBlur = 18;
+
+    ctx.fillStyle = '#6c5ce7';
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + player.w / 2, py + player.h);
+    ctx.lineTo(px, py + player.h * 0.72);
+    ctx.lineTo(px - player.w / 2, py + player.h);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#00d4ff';
+    ctx.beginPath();
+    ctx.arc(px, py + player.h * 0.35, player.w * 0.17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function pointerMove(clientX) {
+    var r = stage.getBoundingClientRect();
+    player.targetX = Math.min(Math.max(0, clientX - r.left - player.w / 2), W - player.w);
+  }
+
+  stage.addEventListener('pointermove', function (e) {
+    if (running) pointerMove(e.clientX);
+  });
+  stage.addEventListener('pointerdown', function (e) {
+    if (running) pointerMove(e.clientX);
+  });
+
+  if (!window.PointerEvent) {
+    stage.addEventListener('touchmove', function (e) {
+      if (!running) return;
+      e.preventDefault();
+      if (e.touches[0]) pointerMove(e.touches[0].clientX);
+    }, { passive: false });
+    stage.addEventListener('touchstart', function (e) {
+      if (running && e.touches[0]) pointerMove(e.touches[0].clientX);
+    }, { passive: true });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') keys.left  = true;
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+    if (e.key === 'Enter' && !running) { e.preventDefault(); start(); }
+    if (e.key === ' ' && !running)     { e.preventDefault(); start(); }
+  });
+  document.addEventListener('keyup', function (e) {
+    if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') keys.left  = false;
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+  });
+
+  startBtn.addEventListener('click', start);
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', function () {
+    setTimeout(resize, 220);
+  });
+
+  resize();
+  draw();
+})();
+</script>
+</body>
+</html>
