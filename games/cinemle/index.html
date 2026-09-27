@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>সিনেমেল — দৈনিক মুভি ধাঁধা</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --maroon:#5A1A28; --maroon-deep:#3E0F1A; --gold:#D4A73B; --gold-bright:#E8C158;
+    --cream:#F3E6C9; --ink:#20120F; --green:#3C6E4F; --red:#9E3B34;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background: radial-gradient(ellipse at top, var(--maroon) 0%, var(--maroon-deep) 65%);
+    color:var(--cream);
+    font-family:'Hind Siliguri', sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100%;
+    padding:18px 14px 34px;
+  }
+  .filmstrip{
+    width:100%; max-width:480px; height:14px;
+    background-image: repeating-linear-gradient(90deg, var(--ink) 0 10px, transparent 10px 22px);
+    background-color: #000;
+    border-radius:3px;
+    position:relative;
+    margin-bottom:4px;
+  }
+  header{ text-align:center; margin:14px 0 6px; max-width:480px; width:100%;}
+  h1{
+    font-family:'Bebas Neue', sans-serif;
+    letter-spacing:4px;
+    font-size:2.6rem;
+    margin:0;
+    color:var(--gold-bright);
+    text-shadow: 0 2px 0 rgba(0,0,0,.4);
+  }
+  .tagline{ font-size:.92rem; color:var(--cream); opacity:.8; margin-top:2px;}
+  main{ width:100%; max-width:480px; flex:1; display:flex; flex-direction:column; gap:14px; }
+  .card{
+    background: rgba(0,0,0,.22);
+    border:1px solid rgba(212,167,59,.35);
+    border-radius:10px;
+    padding:16px;
+  }
+  .hints-title{ font-size:.8rem; text-transform:uppercase; letter-spacing:2px; color:var(--gold); margin:0 0 10px; }
+  .hint-row{
+    display:flex; gap:10px; align-items:flex-start;
+    padding:8px 0; border-bottom:1px dashed rgba(212,167,59,.2);
+    font-size:.98rem; line-height:1.4;
+  }
+  .hint-row:last-child{ border-bottom:none; }
+  .hint-num{
+    flex:0 0 auto; width:24px; height:24px; border-radius:50%;
+    background:var(--gold); color:var(--ink); font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-size:.85rem;
+  }
+  .hint-row.locked .hint-num{ background:rgba(255,255,255,.15); color:rgba(255,255,255,.4); }
+  .hint-row.locked .hint-text{ color:rgba(255,255,255,.35); }
+  .hint-row.revealed .hint-num{ background:var(--gold-bright); }
+  #guessForm{ display:flex; gap:8px; }
+  #guessInput{
+    flex:1; padding:12px 14px; border-radius:8px; border:1px solid rgba(212,167,59,.5);
+    background:rgba(255,255,255,.06); color:var(--cream); font-size:1rem; font-family:inherit;
+    outline:none;
+  }
+  #guessInput:focus{ border-color:var(--gold-bright); box-shadow:0 0 0 2px rgba(232,193,88,.25); }
+  #guessForm button{
+    padding:12px 18px; border-radius:8px; border:none;
+    background:var(--gold); color:var(--ink); font-weight:700; font-size:1rem;
+    cursor:pointer;
+  }
+  #guessForm button:active{ transform:scale(.97); }
+  .attempts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip{
+    padding:5px 10px; border-radius:20px; font-size:.85rem;
+    background:rgba(158,59,52,.35); border:1px solid var(--red); color:var(--cream);
+  }
+  #message{ text-align:center; font-size:.95rem; min-height:1.3em; margin-top:2px; }
+  #result{ display:none; text-align:center; }
+  #result.show{ display:block; }
+  .result-title{ font-family:'Bebas Neue', sans-serif; font-size:1.8rem; letter-spacing:2px; color:var(--gold-bright); margin:0 0 6px;}
+  .emoji-grid{ font-size:1.4rem; letter-spacing:4px; margin:10px 0; }
+  .movie-meta{ font-size:.9rem; color:var(--cream); opacity:.85; margin-bottom:12px; }
+  .share-btn{
+    padding:11px 20px; border-radius:8px; border:1px solid var(--gold);
+    background:transparent; color:var(--gold-bright); font-weight:600; font-size:.95rem;
+    cursor:pointer;
+  }
+  .stats{ display:flex; justify-content:center; gap:22px; margin-top:12px; font-size:.85rem; color:var(--cream); opacity:.85; }
+  .stats b{ display:block; font-size:1.3rem; color:var(--gold-bright); font-family:'Bebas Neue'; letter-spacing:1px;}
+  footer{ margin-top:auto; padding-top:18px; text-align:center; font-size:.78rem; opacity:.55; }
+  #loadMsg{ text-align:center; padding:40px 0; opacity:.7; }
+  @media (max-width:360px){ h1{ font-size:2.1rem; } }
+</style>
+</head>
+<body>
+
+<div class="filmstrip"></div>
+<header>
+  <h1>সিনেমেল</h1>
+  <p class="tagline">প্রতিদিন একটা বলিউড/ঢালিউড মুভি — হিন্ট নিয়ে গেস করো</p>
+</header>
+
+<main id="app" style="display:none;">
+  <div class="card" id="hintsCard">
+    <p class="hints-title">হিন্টস</p>
+    <div id="hintsList"></div>
+  </div>
+
+  <div class="card">
+    <form id="guessForm">
+      <input type="text" id="guessInput" placeholder="মুভির নাম লেখো..." autocomplete="off">
+      <button type="submit" id="guessBtn">গেস</button>
+    </form>
+    <div id="message"></div>
+    <div class="attempts" id="attemptsList"></div>
+  </div>
+
+  <div class="card" id="result">
+    <div class="result-title" id="resultTitle"></div>
+    <div class="movie-meta" id="movieMeta"></div>
+    <div class="emoji-grid" id="emojiGrid"></div>
+    <button class="share-btn" id="shareBtn">রেজাল্ট শেয়ার করো</button>
+    <div class="stats">
+      <div><b id="streakNum">0</b>স্ট্রিক</div>
+      <div><b id="playedNum">0</b>খেলেছো</div>
+    </div>
+  </div>
+</main>
+
+<div id="loadMsg">মুভি লোড হচ্ছে...</div>
+
+<div class="filmstrip"></div>
+<footer>প্রতিদিন নতুন মুভি · ঢালিউড ও বলিউডের ক্লাসিক ও হিট সিনেমা নিয়ে</footer>
+
+<script>
+const MAX_ATTEMPTS = 5;
+let MOVIES = [];
+let movie, todayIdx, dateKey;
+let state = { attempts: [], done:false, won:false, hintsRevealed:1 };
+
+function dayIndex(len){
+  const EPOCH = new Date("2026-01-01T00:00:00");
+  const now = new Date();
+  const diff = Math.floor((now - EPOCH) / 86400000);
+  return ((diff % len) + len) % len;
+}
+
+function normalize(s){
+  return s.toLowerCase().replace(/[^\u0980-\u09ffa-z0-9]/g,'').trim();
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem('cinemle_'+dateKey);
+    if(raw) state = JSON.parse(raw);
+  }catch(e){}
+}
+function saveState(){
+  try{ localStorage.setItem('cinemle_'+dateKey, JSON.stringify(state)); }catch(e){}
+}
+function getStats(){
+  try{
+    const raw = localStorage.getItem('cinemle_stats');
+    return raw ? JSON.parse(raw) : {streak:0, played:0, lastWinDate:null};
+  }catch(e){ return {streak:0, played:0, lastWinDate:null}; }
+}
+function saveStats(s){ try{ localStorage.setItem('cinemle_stats', JSON.stringify(s)); }catch(e){} }
+
+function renderHints(){
+  const list = document.getElementById('hintsList');
+  list.innerHTML = '';
+  movie.hints.forEach((h, i) => {
+    const row = document.createElement('div');
+    const revealed = i < state.hintsRevealed;
+    row.className = 'hint-row ' + (revealed ? 'revealed' : 'locked');
+    row.innerHTML = `<div class="hint-num">${i+1}</div><div class="hint-text">${revealed ? h : '???'}</div>`;
+    list.appendChild(row);
+  });
+}
+
+function renderAttempts(){
+  const el = document.getElementById('attemptsList');
+  el.innerHTML = '';
+  state.attempts.forEach(a => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = a;
+    el.appendChild(chip);
+  });
+}
+
+function renderResult(){
+  if(!state.done) return;
+  document.getElementById('result').classList.add('show');
+  document.getElementById('guessForm').style.display = 'none';
+  document.getElementById('resultTitle').textContent = state.won ? '🎉 ঠিক ধরেছো!' : '😅 আজকের উত্তর';
+  document.getElementById('movieMeta').textContent = movie.name + ' — ' + movie.meta;
+  let grid = '';
+  for(let i=0;i<MAX_ATTEMPTS;i++){
+    if(i < state.attempts.length - (state.won?1:0)) grid += '🟥';
+    else if(state.won && i === state.attempts.length-1) grid += '🟩';
+    else grid += '⬛';
+  }
+  document.getElementById('emojiGrid').textContent = grid;
+  const stats = getStats();
+  document.getElementById('streakNum').textContent = stats.streak;
+  document.getElementById('playedNum').textContent = stats.played;
+}
+
+function finish(won){
+  state.done = true;
+  state.won = won;
+  saveState();
+  const stats = getStats();
+  stats.played += 1;
+  if(won){
+    if(stats.lastWinDate){
+      const prev = new Date(stats.lastWinDate);
+      const diffDays = Math.round((new Date(dateKey) - prev)/86400000);
+      stats.streak = diffDays === 1 ? stats.streak + 1 : 1;
+    } else {
+      stats.streak = 1;
+    }
+    stats.lastWinDate = dateKey;
+  } else {
+    stats.streak = 0;
+  }
+  saveStats(stats);
+  renderResult();
+}
+
+function initGame(){
+  document.getElementById('loadMsg').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  todayIdx = dayIndex(MOVIES.length);
+  movie = MOVIES[todayIdx];
+  dateKey = new Date().toISOString().slice(0,10);
+
+  loadState();
+  renderHints();
+  renderAttempts();
+
+  document.getElementById('guessForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    if(state.done) return;
+    const input = document.getElementById('guessInput');
+    const guess = input.value.trim();
+    if(!guess) return;
+    const msg = document.getElementById('message');
+
+    if(normalize(guess) === normalize(movie.name)){
+      state.attempts.push(guess);
+      input.value = '';
+      finish(true);
+      return;
+    }
+
+    state.attempts.push(guess);
+    state.hintsRevealed = Math.min(movie.hints.length, state.hintsRevealed + 1);
+    input.value = '';
+
+    if(state.attempts.length >= MAX_ATTEMPTS){
+      saveState();
+      finish(false);
+      return;
+    }
+
+    msg.textContent = 'ভুল হয়েছে — নতুন হিন্ট খুলে গেছে (' + (MAX_ATTEMPTS - state.attempts.length) + ' সুযোগ বাকি)';
+    saveState();
+    renderHints();
+    renderAttempts();
+  });
+
+  document.getElementById('shareBtn').addEventListener('click', function(){
+    let grid = '';
+    for(let i=0;i<MAX_ATTEMPTS;i++){
+      if(i < state.attempts.length - (state.won?1:0)) grid += '🟥';
+      else if(state.won && i === state.attempts.length-1) grid += '🟩';
+      else grid += '⬛';
+    }
+    const text = `সিনেমেল #${todayIdx+1}\n${state.won ? state.attempts.length+'/'+MAX_ATTEMPTS : 'X/'+MAX_ATTEMPTS}\n${grid}`;
+    if(navigator.share){
+      navigator.share({text}).catch(()=>{});
+    } else {
+      navigator.clipboard?.writeText(text).then(()=>{
+        const btn = document.getElementById('shareBtn');
+        const old = btn.textContent;
+        btn.textContent = 'কপি হয়েছে ✓';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      }).catch(()=>{});
+    }
+  });
+
+  if(state.done){
+    document.getElementById('guessForm').style.display = 'none';
+    renderResult();
+  } else if(state.attempts.length > 0){
+    document.getElementById('message').textContent = (MAX_ATTEMPTS - state.attempts.length) + ' সুযোগ বাকি';
+  }
+}
+
+fetch('games.json')
+  .then(r => r.json())
+  .then(data => {
+    MOVIES = data;
+    initGame();
+  })
+  .catch(err => {
+    document.getElementById('loadMsg').textContent = 'games.json লোড করা যায়নি — একই ফোল্ডারে ফাইলটা আছে কিনা দেখো, আর লোকাল সার্ভার দিয়ে খোলো (fetch file:// থেকে কাজ নাও করতে পারে)।';
+  });
+</script>
+</body>
+</html>
