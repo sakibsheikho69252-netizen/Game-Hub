@@ -1,5 +1,5 @@
 
-  {
+{
   "games": [
     {
       "id": "tap-rush",
@@ -82,10 +82,10 @@
       "controls": "← → ↓ ↻ / Touch buttons / Arrow keys + Space + Z/X + C + P"
     },
     {
-      "id": "guess-the-movie",
+      "id": "cinemle",
       "title": "সিনেমা ধাঁধা",
       "description": "ইঙ্গিত দেখে বলিউড ও ঢালিউডের সিনেমা চেনো। কম হিন্টে ধরতে পারলে বেশি পয়েন্ট।",
-      "folder": "guess-the-movie",
+      "folder": "cinemle",
       "category": "Trivia",
       "tags": ["trivia", "movies", "bollywood", "dhallywood", "quiz"],
       "icon": "🎬",
@@ -98,4 +98,3 @@
       "controls": "Touch / Click"
     }
   ]
-}
