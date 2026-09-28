@@ -80,6 +80,22 @@
       "releaseDate": "2026-09-25",
       "author": "Game Hub",
       "controls": "← → ↓ ↻ / Touch buttons / Arrow keys + Space + Z/X + C + P"
+    },
+    {
+      "id": "guess-the-movie",
+      "title": "সিনেমা ধাঁধা",
+      "description": "ইঙ্গিত দেখে বলিউড ও ঢালিউডের সিনেমা চেনো। কম হিন্টে ধরতে পারলে বেশি পয়েন্ট।",
+      "folder": "guess-the-movie",
+      "category": "Trivia",
+      "tags": ["trivia", "movies", "bollywood", "dhallywood", "quiz"],
+      "icon": "🎬",
+      "difficulty": "Medium",
+      "version": "1.0.0",
+      "featured": true,
+      "new": true,
+      "releaseDate": "2026-09-28",
+      "author": "Game Hub",
+      "controls": "Touch / Click"
     }
   ]
 }
